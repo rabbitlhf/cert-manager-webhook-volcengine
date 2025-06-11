@@ -1,0 +1,11 @@
+{
+  "regionId": "cn-guangzhou",
+  "accessTokenSecretRef": {
+    "name": "volcengine-secret",
+    "key": "key"
+  },
+  "secretKeySecretRef": {
+    "name": "volcengine-secret",
+    "key": "key"
+  }
+}
