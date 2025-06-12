@@ -7,7 +7,7 @@ IMAGE_TAG := "latest"
 
 OUT := $(shell pwd)/_out
 
-KUBEBUILDER_VERSION=1.28.0
+KUBE_VERSION=1.28.0
 
 $(shell mkdir -p "$(OUT)")
 export TEST_ASSET_ETCD=_test/kubebuilder/bin/etcd
@@ -15,7 +15,7 @@ export TEST_ASSET_KUBE_APISERVER=_test/kubebuilder/bin/kube-apiserver
 export TEST_ASSET_KUBECTL=_test/kubebuilder/bin/kubectl
 
 test: _test/kubebuilder
-	go test -v .
+	TEST_ZONE_NAME=example.com go test -v .
 
 _test/kubebuilder:
 	curl -fsSL https://go.kubebuilder.io/test-tools/$(KUBE_VERSION)/$(OS)/$(ARCH) -o kubebuilder-tools.tar.gz
@@ -32,6 +32,9 @@ clean-kubebuilder:
 
 build:
 	docker build -t "$(IMAGE_NAME):$(IMAGE_TAG)" .
+
+push:
+	docker push "$(IMAGE_NAME):$(IMAGE_TAG)"
 
 .PHONY: rendered-manifest.yaml
 rendered-manifest.yaml:

@@ -26,6 +26,7 @@ func TestRunsSuite(t *testing.T) {
 	//)
 	fixture := acmetest.NewFixture(&volcengineDNSProviderSolver{},
 		acmetest.SetResolvedZone(zone),
+		//acmetest.SetResolvedFQDN()
 		acmetest.SetManifestPath("testdata/volcengine-solver"),
 		acmetest.SetDNSServer("127.0.0.1:59351"),
 		acmetest.SetUseAuthoritative(false),

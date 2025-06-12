@@ -7,32 +7,35 @@
 # This group name should be **unique**, hence using your own company's domain
 # here is recommended.
 groupName: acme.mycompany.com
+#regionId: cn-beijing
+
+# log level of the webhook server: debug, info, warn, error
+logLevel: info
 
 certManager:
   namespace: cert-manager
   serviceAccountName: cert-manager
 
-#secrets:
-# apiID:
-# apiToken:
+image:
+  repository: rabbitlhf/cert-manager-webhook-volcengine
+  #  tag: latest
+  pullPolicy: IfNotPresent
+
+# imagePullSecrets:
+#   - name: regcred
 
 clusterIssuer:
   enabled: false
   staging: false
-  #email:
+  ttl: 600
+#  email:
+#  accessKey:
+#  secretKey:
 
   # https://cert-manager.io/docs/configuration/acme/#adding-multiple-solver-types
   #selector:
   #  dnsZones:
   #    - 'example.com'
-
-# imagePullSecrets:
-#   - name: regcred
-
-image:
-  repository: rabbitlhf/cert-manager-webhook-volcengine
-#  tag: latest
-  pullPolicy: IfNotPresent
 
 nameOverride: ""
 fullnameOverride: ""

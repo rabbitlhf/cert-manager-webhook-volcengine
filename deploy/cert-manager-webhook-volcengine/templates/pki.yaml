@@ -104,12 +104,13 @@ spec:
             solverName: volcengine
             config:
               regionId: {{ .Values.regionId | "cn-beijing" }}
+              ttl: {{ .Values.clusterIssuer.ttl }}
               accessKeySecretRef:
-                key: access-key
-                name: {{ include "cert-manager-webhook-volcengine.fullname" .}}-secret
+                key: accessKey
+                name: {{ include "cert-manager-webhook-volcengine.fullname" . }}-secret
               secretKeySecretRef:
-                key: secret-key
-                name: {{ include "cert-manager-webhook-volcengine.fullname" .}}-secret
+                key: secretKey
+                name: {{ include "cert-manager-webhook-volcengine.fullname" . }}-secret
       {{- if .Values.clusterIssuer.selector }}
         selector:
 {{ toYaml .Values.clusterIssuer.selector | indent 8 }}

@@ -1,58 +1,116 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/cert-manager/cert-manager/d53c0b9270f8cd90d908460d69502694e1838f5f/logo/logo-small.png" height="256" width="256" alt="cert-manager project logo" />
-</p>
+# cert-manager-webhook-volcengine
 
-# ACME webhook example
+This is a cert-manager webhook solver for [Volcengine-trafficroute](https://www.volcengine.com/product/trafficroute).
 
-The ACME issuer type supports an optional 'webhook' solver, which can be used
-to implement custom DNS01 challenge solving logic.
+## Prerequisites
 
-This is useful if you need to use cert-manager with a DNS provider that is not
-officially supported in cert-manager core.
+* [cert-manager](https://github.com/cert-manager/cert-manager) >= 1.13.0
 
-## Why not in core?
+## Installation
 
-As the project & adoption has grown, there has been an influx of DNS provider
-pull requests to our core codebase. As this number has grown, the test matrix
-has become un-maintainable and so, it's not possible for us to certify that
-providers work to a sufficient level.
+### Use Helm
 
-By creating this 'interface' between cert-manager and DNS providers, we allow
-users to quickly iterate and test out new integrations, and then packaging
-those up themselves as 'extensions' to cert-manager.
+First, generate `AccessKey` and `SecretKey` in [Cloud API](https://console.volcengine.com/iam/keymanage/)
 
-We can also then provide a standardised 'testing framework', or set of
-conformance tests, which allow us to validate that a DNS provider works as
-expected.
-
-## Creating your own webhook
-
-Webhook's themselves are deployed as Kubernetes API services, in order to allow
-administrators to restrict access to webhooks with Kubernetes RBAC.
-
-This is important, as otherwise it'd be possible for anyone with access to your
-webhook to complete ACME challenge validations and obtain certificates.
-
-To make the set up of these webhook's easier, we provide a template repository
-that can be used to get started quickly.
-
-### Creating your own repository
-
-### Running the test suite
-
-All DNS providers **must** run the DNS01 provider conformance testing suite,
-else they will have undetermined behaviour when used with cert-manager.
-
-**It is essential that you configure and run the test suite when creating a
-DNS01 webhook.**
-
-An example Go test file has been provided in [main_test.go](https://github.com/cert-manager/webhook-example/blob/master/main_test.go).
-
-You can run the test suite with:
+You can install chart from git repo:
 
 ```bash
-$ TEST_ZONE_NAME=example.com. make test
+$ helm install --name cert-manager-webhook-volcengine ./deploy/cert-manager-webhook-volcengine \
+    --namespace <NAMESPACE-WHICH-CERT-MANAGER-INSTALLED> \
+    --set groupName=<GROUP_NAME> \
+    --set clusterIssuer.enabled=true,clusterIssuer.email=<EMAIL_ADDRESS>
 ```
 
-The example file has a number of areas you must fill in and replace with your
-own options in order for tests to pass.
+Create the secret holding volcegine credential, accessKey need input AccessKeyId, secretKey need input SecretAccessKey:
+```
+kubectl create secret generic volcengine-secrets --from-literal="accessKey=youraccesskey" --from-literal="secretKey=yoursecretkey"
+```
+
+### Use Kubectl
+
+Use `kubectl apply` to install:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/imroc/cert-manager-webhook-volcengine/master/bundle.yaml
+```
+
+## Usage
+
+### Cridentials
+
+Firstly, create a secret that contains Volcengine account's `AccessKey` and `SecretKey`:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: volcengine-secret
+  namespace: cert-manager
+type: Opaque
+stringData:
+  accessKey: xxx
+  secretKey: xxx
+```
+
+> Base64 is not needed in `stringData`.
+
+### Create Issuer
+
+Before you can issue a certificate, you need to create a `Issuer` or `ClusterIssuer`.
+
+> If you use helm and only need a global `ClusterIssuer`, you can add `--set clusterIssuer.enabled=true --set clusterIssuer.accessKey=xxx --set clusterIssuer.secretKey=xxx` to create the `ClusterIssuer`.
+
+Create a `ClusterIssuer` referring the secret:
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: volcengine
+spec:
+  acme:
+    email: roc@imroc.cc
+    privateKeySecretRef:
+      name: volcengine-letsencrypt
+    server: https://acme-v02.api.letsencrypt.org/directory
+    solvers:
+      - dns01:
+          webhook:
+            config:
+              accessKeyRef:
+                key: accessKey
+                name: volcengine-secret
+              secretKeyRef:
+                key: secretKey
+                name: volcengine-secret
+              ttl: 600
+            groupName: acme.volcengine.com
+            solverName: volcengine
+```
+
+1. `accessKey` and `secretKey` is the AccessKey and SecretKey of your Volcengine account.
+2. `groupName` is the the groupName that specified in your cert-manager-webhook-volcengine installation, defaults to `acme.volcengine.com`.
+3. `solverName` must be `volcengine`.
+4. `ttl` is the optional ttl of dns TXT record that created by webhook.
+5. `regionId` is the optional regionId parameter of the volcengine.
+6. `email` is the optional email address. When the domain is about to expire, a notification will be sent to this email address.
+
+### Create Certificate
+
+You can issue the certificate by creating `Certificate` that referring the volcengine `ClusterIssuer` or `Issuer`:
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: example-crt
+spec:
+  secretName: example-crt
+  issuerRef:
+    name: volcengine
+    kind: ClusterIssuer
+    group: cert-manager.io
+  dnsNames:
+    - "example.com"
+    - "*.example.com"
+```
