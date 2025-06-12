@@ -4,11 +4,11 @@
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: {{ include "volcengine-dns-webhook.selfSignedIssuer" . }}
+  name: {{ include "cert-manager-webhook-volcengine.selfSignedIssuer" . }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    app: {{ include "volcengine-dns-webhook.name" . }}
-    chart: {{ include "volcengine-dns-webhook.chart" . }}
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
@@ -20,19 +20,19 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ include "volcengine-dns-webhook.rootCACertificate" . }}
+  name: {{ include "cert-manager-webhook-volcengine.rootCACertificate" . }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    app: {{ include "volcengine-dns-webhook.name" . }}
-    chart: {{ include "volcengine-dns-webhook.chart" . }}
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
-  secretName: {{ include "volcengine-dns-webhook.rootCACertificate" . }}
+  secretName: {{ include "cert-manager-webhook-volcengine.rootCACertificate" . }}
   duration: 43800h # 5y
   issuerRef:
-    name: {{ include "volcengine-dns-webhook.selfSignedIssuer" . }}
-  commonName: "ca.volcengine-dns-webhook.cert-manager"
+    name: {{ include "cert-manager-webhook-volcengine.selfSignedIssuer" . }}
+  commonName: "ca.cert-manager-webhook-volcengine.cert-manager"
   isCA: true
 
 ---
@@ -41,16 +41,16 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: {{ include "volcengine-dns-webhook.rootCAIssuer" . }}
+  name: {{ include "cert-manager-webhook-volcengine.rootCAIssuer" . }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    app: {{ include "volcengine-dns-webhook.name" . }}
-    chart: {{ include "volcengine-dns-webhook.chart" . }}
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
   ca:
-    secretName: {{ include "volcengine-dns-webhook.rootCACertificate" . }}
+    secretName: {{ include "cert-manager-webhook-volcengine.rootCACertificate" . }}
 
 ---
 
@@ -58,19 +58,61 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ include "volcengine-dns-webhook.servingCertificate" . }}
+  name: {{ include "cert-manager-webhook-volcengine.servingCertificate" . }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    app: {{ include "volcengine-dns-webhook.name" . }}
-    chart: {{ include "volcengine-dns-webhook.chart" . }}
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
-  secretName: {{ include "volcengine-dns-webhook.servingCertificate" . }}
+  secretName: {{ include "cert-manager-webhook-volcengine.servingCertificate" . }}
   duration: 8760h # 1y
   issuerRef:
-    name: {{ include "volcengine-dns-webhook.rootCAIssuer" . }}
+    name: {{ include "cert-manager-webhook-volcengine.rootCAIssuer" . }}
   dnsNames:
-  - {{ include "volcengine-dns-webhook.fullname" . }}
-  - {{ include "volcengine-dns-webhook.fullname" . }}.{{ .Release.Namespace }}
-  - {{ include "volcengine-dns-webhook.fullname" . }}.{{ .Release.Namespace }}.svc
+  - {{ include "cert-manager-webhook-volcengine.fullname" . }}
+  - {{ include "cert-manager-webhook-volcengine.fullname" . }}.{{ .Release.Namespace }}
+  - {{ include "cert-manager-webhook-volcengine.fullname" . }}.{{ .Release.Namespace }}.svc
+{{- if .Values.clusterIssuer.enabled }}
+---
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ include "cert-manager-webhook-volcengine.clusterIssuer" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  acme:
+{{- if .Values.clusterIssuer.staging }}
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+{{- else }}
+    server: https://acme-v02.api.letsencrypt.org/directory
+{{- end }}
+    email: {{ .Values.clusterIssuer.email }}
+    privateKeySecretRef:
+      name: {{ include "cert-manager-webhook-volcengine.fullname" . }}-letsencrypt
+    solvers:
+      - dns01:
+          webhook:
+            groupName: {{ .Values.groupName }}
+            solverName: volcengine
+            config:
+              regionId: {{ .Values.regionId | "cn-beijing" }}
+              accessKeySecretRef:
+                key: access-key
+                name: {{ include "cert-manager-webhook-volcengine.fullname" .}}-secret
+              secretKeySecretRef:
+                key: secret-key
+                name: {{ include "cert-manager-webhook-volcengine.fullname" .}}-secret
+      {{- if .Values.clusterIssuer.selector }}
+        selector:
+{{ toYaml .Values.clusterIssuer.selector | indent 8 }}
+      {{- end }}
+{{- end }}
+

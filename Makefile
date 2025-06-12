@@ -2,44 +2,41 @@ GO ?= $(shell which go)
 OS ?= $(shell $(GO) env GOOS)
 ARCH ?= $(shell $(GO) env GOARCH)
 
-IMAGE_NAME := "webhook"
+IMAGE_NAME := "rabbitlhf/cert-manager-webhook-volcengine"
 IMAGE_TAG := "latest"
 
 OUT := $(shell pwd)/_out
 
 KUBEBUILDER_VERSION=1.28.0
 
-HELM_FILES := $(shell find deploy/example-webhook)
+$(shell mkdir -p "$(OUT)")
+export TEST_ASSET_ETCD=_test/kubebuilder/bin/etcd
+export TEST_ASSET_KUBE_APISERVER=_test/kubebuilder/bin/kube-apiserver
+export TEST_ASSET_KUBECTL=_test/kubebuilder/bin/kubectl
 
-test: _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/etcd _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/kube-apiserver _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/kubectl
-	TEST_ASSET_ETCD=_test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/etcd \
-	TEST_ASSET_KUBE_APISERVER=_test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/kube-apiserver \
-	TEST_ASSET_KUBECTL=_test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/kubectl \
-	$(GO) test -v .
+test: _test/kubebuilder
+	go test -v .
 
-_test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH).tar.gz: | _test
-	curl -fsSL https://go.kubebuilder.io/test-tools/$(KUBEBUILDER_VERSION)/$(OS)/$(ARCH) -o $@
+_test/kubebuilder:
+	curl -fsSL https://go.kubebuilder.io/test-tools/$(KUBE_VERSION)/$(OS)/$(ARCH) -o kubebuilder-tools.tar.gz
+	mkdir -p _test/kubebuilder
+	tar -xvf kubebuilder-tools.tar.gz
+	mv kubebuilder/bin _test/kubebuilder/
+	rm kubebuilder-tools.tar.gz
+	rm -R kubebuilder
 
-_test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/etcd _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/kube-apiserver _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/kubectl: _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH).tar.gz | _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)
-	tar xfO $< kubebuilder/bin/$(notdir $@) > $@ && chmod +x $@
+clean: clean-kubebuilder
 
-.PHONY: clean
-clean:
-	rm -r _test $(OUT)
+clean-kubebuilder:
+	rm -Rf _test/kubebuilder
 
-.PHONY: build
 build:
 	docker build -t "$(IMAGE_NAME):$(IMAGE_TAG)" .
 
 .PHONY: rendered-manifest.yaml
-rendered-manifest.yaml: $(OUT)/rendered-manifest.yaml
-
-$(OUT)/rendered-manifest.yaml: $(HELM_FILES) | $(OUT)
+rendered-manifest.yaml:
 	helm template \
-	    --name example-webhook \
+	        --name cert-manager-webhook-volcengine \
             --set image.repository=$(IMAGE_NAME) \
             --set image.tag=$(IMAGE_TAG) \
-            deploy/example-webhook > $@
-
-_test $(OUT) _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH):
-	mkdir -p $@
+            deploy/cert-manager-webhook-volcengine > "$(OUT)/rendered-manifest.yaml"

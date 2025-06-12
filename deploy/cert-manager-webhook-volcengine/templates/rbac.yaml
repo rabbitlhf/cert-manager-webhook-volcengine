@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ include "volcengine-dns-webhook.fullname" . }}
+  name: {{ include "cert-manager-webhook-volcengine.fullname" . }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    app: {{ include "volcengine-dns-webhook.name" . }}
-    chart: {{ include "volcengine-dns-webhook.chart" . }}
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 ---
@@ -15,32 +15,53 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ include "volcengine-dns-webhook.fullname" . }}:webhook-authentication-reader
+  name: {{ include "cert-manager-webhook-volcengine.fullname" . }}:webhook-authentication-reader
   namespace: kube-system
   labels:
-    app: {{ include "volcengine-dns-webhook.name" . }}
-    chart: {{ include "volcengine-dns-webhook.chart" . }}
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: extension-apiserver-authentication-reader
+  name: {{ include "cert-manager-webhook-volcengine.fullname" . }}:webhook-authentication-reader
 subjects:
   - apiGroup: ""
     kind: ServiceAccount
-    name: {{ include "volcengine-dns-webhook.fullname" . }}
+    name: {{ include "cert-manager-webhook-volcengine.fullname" . }}
     namespace: {{ .Release.Namespace }}
+---
+# Once we no longer have to support Kubernetes versions lower than 1.17, we
+# can remove this custom defined Role in favour of the system-provisioned
+# extension-apiserver-authentication-reader Role resource in kube-system.
+# See https://github.com/kubernetes/kubernetes/issues/86359 for more details.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "cert-manager-webhook-volcengine.fullname" . }}:webhook-authentication-reader
+  namespace: kube-system
+rules:
+- apiGroups:
+  - ""
+  resourceNames:
+  - extension-apiserver-authentication
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
 ---
 # apiserver gets the auth-delegator role to delegate auth decisions to
 # the core apiserver
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "volcengine-dns-webhook.fullname" . }}:auth-delegator
+  name: {{ include "cert-manager-webhook-volcengine.fullname" . }}:auth-delegator
   labels:
-    app: {{ include "volcengine-dns-webhook.name" . }}
-    chart: {{ include "volcengine-dns-webhook.chart" . }}
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 roleRef:
@@ -50,17 +71,17 @@ roleRef:
 subjects:
   - apiGroup: ""
     kind: ServiceAccount
-    name: {{ include "volcengine-dns-webhook.fullname" . }}
+    name: {{ include "cert-manager-webhook-volcengine.fullname" . }}
     namespace: {{ .Release.Namespace }}
 ---
 # Grant cert-manager permission to validate using our apiserver
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ include "volcengine-dns-webhook.fullname" . }}:domain-solver
+  name: {{ include "cert-manager-webhook-volcengine.fullname" . }}:domain-solver
   labels:
-    app: {{ include "volcengine-dns-webhook.name" . }}
-    chart: {{ include "volcengine-dns-webhook.chart" . }}
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 rules:
@@ -74,18 +95,56 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ include "volcengine-dns-webhook.fullname" . }}:domain-solver
+  name: {{ include "cert-manager-webhook-volcengine.fullname" . }}:domain-solver
   labels:
-    app: {{ include "volcengine-dns-webhook.name" . }}
-    chart: {{ include "volcengine-dns-webhook.chart" . }}
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ include "volcengine-dns-webhook.fullname" . }}:domain-solver
+  name: {{ include "cert-manager-webhook-volcengine.fullname" . }}:domain-solver
 subjects:
   - apiGroup: ""
     kind: ServiceAccount
     name: {{ .Values.certManager.serviceAccountName }}
     namespace: {{ .Values.certManager.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "cert-manager-webhook-volcengine.fullname" . }}:secret-reader
+  labels:
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  resourceNames:
+  - {{ include "cert-manager-webhook-volcengine.fullname" . }}-secret
+  verbs:
+  - get
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "cert-manager-webhook-volcengine.fullname" . }}:secret-reader
+  labels:
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "cert-manager-webhook-volcengine.fullname" . }}:secret-reader
+subjects:
+  - apiGroup: ""
+    kind: ServiceAccount
+    name: {{ include "cert-manager-webhook-volcengine.fullname" . }}

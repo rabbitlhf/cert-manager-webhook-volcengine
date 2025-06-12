@@ -3,17 +3,17 @@ kind: APIService
 metadata:
   name: v1alpha1.{{ .Values.groupName }}
   labels:
-    app: {{ include "volcengine-dns-webhook.name" . }}
-    chart: {{ include "volcengine-dns-webhook.chart" . }}
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
   annotations:
-    cert-manager.io/inject-ca-from: "{{ .Release.Namespace }}/{{ include "volcengine-dns-webhook.servingCertificate" . }}"
+    cert-manager.io/inject-ca-from: "{{ .Release.Namespace }}/{{ include "cert-manager-webhook-volcengine.servingCertificate" . }}"
 spec:
   group: {{ .Values.groupName }}
   groupPriorityMinimum: 1000
   versionPriority: 15
   service:
-    name: {{ include "volcengine-dns-webhook.fullname" . }}
+    name: {{ include "cert-manager-webhook-volcengine.fullname" . }}
     namespace: {{ .Release.Namespace }}
   version: v1alpha1

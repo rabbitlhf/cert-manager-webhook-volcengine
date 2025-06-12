@@ -1,33 +1,36 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "volcengine-dns-webhook.fullname" . }}
+  name: {{ include "cert-manager-webhook-volcengine.fullname" . }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    app: {{ include "volcengine-dns-webhook.name" . }}
-    chart: {{ include "volcengine-dns-webhook.chart" . }}
+    app: {{ include "cert-manager-webhook-volcengine.name" . }}
+    chart: {{ include "cert-manager-webhook-volcengine.chart" . }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      app: {{ include "volcengine-dns-webhook.name" . }}
+      app: {{ include "cert-manager-webhook-volcengine.name" . }}
       release: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: {{ include "volcengine-dns-webhook.name" . }}
+        app: {{ include "cert-manager-webhook-volcengine.name" . }}
         release: {{ .Release.Name }}
     spec:
-      serviceAccountName: {{ include "volcengine-dns-webhook.fullname" . }}
+      serviceAccountName: {{ include "cert-manager-webhook-volcengine.fullname" . }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
       {{- with .Values.securityContext }}
       securityContext:
         {{- . | toYaml | nindent 8 }}
       {{- end }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - --tls-cert-file=/tls/tls.crt
@@ -59,14 +62,10 @@ spec:
               readOnly: true
           resources:
 {{ toYaml .Values.resources | indent 12 }}
-{{ if .Values.image.privateRegistry.enabled }}
-      imagePullSecrets:
-        - name: {{ .Values.image.privateRegistry.dockerRegistrySecret }}
-{{ end }}
       volumes:
         - name: certs
           secret:
-            secretName: {{ include "volcengine-dns-webhook.servingCertificate" . }}
+            secretName: {{ include "cert-manager-webhook-volcengine.servingCertificate" . }}
     {{- with .Values.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}

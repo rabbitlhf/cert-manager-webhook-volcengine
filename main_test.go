@@ -25,7 +25,7 @@ func TestRunsSuite(t *testing.T) {
 	//	acmetest.SetBinariesPath("_test/kubebuilder/bin"),
 	//)
 	fixture := acmetest.NewFixture(&volcengineDNSProviderSolver{},
-		acmetest.SetResolvedZone("example.com."),
+		acmetest.SetResolvedZone(zone),
 		acmetest.SetManifestPath("testdata/volcengine-dns-solver"),
 		acmetest.SetDNSServer("127.0.0.1:59351"),
 		acmetest.SetUseAuthoritative(false),

@@ -80,9 +80,9 @@ type volcengineDNSProviderConfig struct {
 	//Email           string `json:"email"`
 	//APIKeySecretRef v1alpha1.SecretKeySelector `json:"apiKeySecretRef"`
 
-	AccessKeySecretRef cmmetav1.SecretKeySelector `json:"accessKeySecretRef"`
-	SecretKeySecretRef cmmetav1.SecretKeySelector `json:"secretKeySecretRef"`
-	RegionId           string                     `json:"regionId"`
+	AccessKey cmmetav1.SecretKeySelector `json:"accessKeySecretRef"`
+	SecretKey cmmetav1.SecretKeySelector `json:"secretKeySecretRef"`
+	RegionId  string                     `json:"regionId"`
 }
 
 // Name is used as the name for this DNS solver when referencing it on the ACME
@@ -109,18 +109,18 @@ func (c *volcengineDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) err
 	// TODO: do something more useful with the decoded configuration
 	fmt.Printf("Decoded configuration %v", cfg)
 
-	accessToken, err := c.loadSecretData(cfg.AccessKeySecretRef, ch.ResourceNamespace)
+	accessKey, err := c.loadSecretData(cfg.AccessKey, ch.ResourceNamespace)
 	if err != nil {
 		return err
 	}
 
-	secretKey, err := c.loadSecretData(cfg.SecretKeySecretRef, ch.ResourceNamespace)
+	secretKey, err := c.loadSecretData(cfg.SecretKey, ch.ResourceNamespace)
 	if err != nil {
 		return err
 	}
 
 	conf := volcengine.NewConfig().
-		WithCredentials(credentials.NewStaticCredentials(string(accessToken), string(secretKey), "")).
+		WithCredentials(credentials.NewStaticCredentials(string(accessKey), string(secretKey), "")).
 		WithRegion(cfg.RegionId)
 
 	sess, err := session.NewSession(conf)
