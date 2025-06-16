@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
-	"github.com/volcengine/volcengine-go-sdk/service/privatezone"
+	"github.com/volcengine/volcengine-go-sdk/service/dns"
 	"github.com/volcengine/volcengine-go-sdk/volcengine"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/credentials"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/session"
+	"k8s.io/klog/v2"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/cert-manager/cert-manager/pkg/acme/webhook/apis/acme/v1alpha1"
@@ -21,6 +21,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+)
+
+const (
+	defaultTTL = 600
 )
 
 var GroupName = os.Getenv("GROUP_NAME")
@@ -54,7 +58,7 @@ type volcengineDNSProviderSolver struct {
 	//client kubernetes.Clientset
 
 	client           *kubernetes.Clientset
-	volcengineClient *privatezone.PRIVATEZONE
+	volcengineClient *dns.DNS
 }
 
 // volcengineDNSProviderConfig is a structure that is used to decode into when
@@ -83,6 +87,7 @@ type volcengineDNSProviderConfig struct {
 	AccessKey cmmetav1.SecretKeySelector `json:"accessKeySecretRef"`
 	SecretKey cmmetav1.SecretKeySelector `json:"secretKeySecretRef"`
 	RegionId  string                     `json:"regionId"`
+	TTL       *int32                     `json:"ttl"`
 }
 
 // Name is used as the name for this DNS solver when referencing it on the ACME
@@ -101,12 +106,15 @@ func (c *volcengineDNSProviderSolver) Name() string {
 // cert-manager itself will later perform a self check to ensure that the
 // solver has correctly configured the DNS provider.
 func (c *volcengineDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
+	klog.V(6).Infof("call function Present: namespace=%s, zone=%s, fqdn=%s",
+		ch.ResourceNamespace, ch.ResolvedZone, ch.ResolvedFQDN)
+
 	cfg, err := loadConfig(ch.Config)
 	if err != nil {
 		return err
 	}
 
-	// TODO: do something more useful with the decoded configuration
+	// do something more useful with the decoded configuration
 	fmt.Printf("Decoded configuration %v", cfg)
 
 	accessKey, err := c.loadSecretData(cfg.AccessKey, ch.ResourceNamespace)
@@ -127,7 +135,7 @@ func (c *volcengineDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) err
 	if err != nil {
 		return err
 	}
-	c.volcengineClient = privatezone.New(sess)
+	c.volcengineClient = dns.New(sess)
 
 	zid, err := c.getHostedZone(ch.ResolvedZone)
 	if err != nil {
@@ -135,12 +143,15 @@ func (c *volcengineDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) err
 	}
 
 	//  volcengine sdk list privatezone res zid type is int32, but create record api input req type is int64
-	recordReq := c.newTxtRecord(int64(zid), ch.ResolvedZone, ch.ResolvedFQDN, ch.Key)
+	recordReq := c.newTxtRecord(int64(zid), ch.ResolvedZone, ch.ResolvedFQDN, ch.Key, *cfg.TTL)
 
 	_, err = c.volcengineClient.CreateRecord(&recordReq)
 	if err != nil {
 		return fmt.Errorf("volcengine: error adding domain record: %v", err)
 	}
+
+	klog.Infof("Presented txt record %v", ch.ResolvedFQDN)
+
 	return nil
 }
 
@@ -151,7 +162,7 @@ func (c *volcengineDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) err
 // This is in order to facilitate multiple DNS validations for the same domain
 // concurrently.
 func (c *volcengineDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
-	// TODO: add code that deletes a record from the DNS provider's console
+	// add code that deletes a record from the DNS provider's console
 	zoneId, err := c.getHostedZone(ch.ResolvedZone)
 	if err != nil {
 		return fmt.Errorf("volcengine: error getting hosted zone: %v", err)
@@ -163,8 +174,7 @@ func (c *volcengineDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) err
 
 	for _, record := range records {
 		if ch.Key == *record.Value {
-			request := privatezone.DeleteRecordInput{}
-			request.SetZID(int64(zoneId))
+			request := dns.DeleteRecordInput{}
 			request.SetRecordID(*record.RecordID)
 			_, err := c.volcengineClient.DeleteRecord(&request)
 			if err != nil {
@@ -201,8 +211,9 @@ func (c *volcengineDNSProviderSolver) Initialize(kubeClientConfig *rest.Config, 
 
 // loadConfig is a small helper function that decodes JSON configuration into
 // the typed config struct.
-func loadConfig(cfgJSON *extapi.JSON) (volcengineDNSProviderConfig, error) {
-	cfg := volcengineDNSProviderConfig{}
+func loadConfig(cfgJSON *extapi.JSON) (*volcengineDNSProviderConfig, error) {
+	ttl := int32(defaultTTL)
+	cfg := &volcengineDNSProviderConfig{TTL: &ttl}
 	// handle the 'base case' where no configuration has been provided
 	if cfgJSON == nil {
 		return cfg, nil
@@ -217,14 +228,15 @@ func loadConfig(cfgJSON *extapi.JSON) (volcengineDNSProviderConfig, error) {
 // getHostedZone is a helper function that gets the ZID of the hosted zone
 // for the given domain name.
 func (c *volcengineDNSProviderSolver) getHostedZone(resolvedZone string) (int32, error) {
-	request := privatezone.ListPrivateZonesInput{}
+	request := dns.ListZonesInput{}
 	var startPage int32 = 1
+	var pageSize int32 = 10
 	domains := make(map[string]int32)
 
 	for {
-		//request.SetPageNumber(startPage)
 		request.PageNumber = &startPage
-		response, err := c.volcengineClient.ListPrivateZones(&request)
+		request.PageSize = &pageSize
+		response, err := c.volcengineClient.ListZones(&request)
 		if err != nil {
 			return 0, fmt.Errorf("volcengine: error listing private zones: %v", err)
 		}
@@ -233,7 +245,7 @@ func (c *volcengineDNSProviderSolver) getHostedZone(resolvedZone string) (int32,
 			domains[*domain.ZoneName] = *domain.ZID
 		}
 
-		if *response.PageNumber**response.PageSize >= *response.Total {
+		if startPage**&pageSize >= *response.Total {
 			break
 		}
 
@@ -253,23 +265,24 @@ func (c *volcengineDNSProviderSolver) getHostedZone(resolvedZone string) (int32,
 
 // newTxtRecord is a helper function that creates a new TXT record input for
 // the given zone, fqdn, and value.
-func (c *volcengineDNSProviderSolver) newTxtRecord(zoneId int64, zone, fqdn, value string) privatezone.CreateRecordInput {
-	request := privatezone.CreateRecordInput{}
+func (c *volcengineDNSProviderSolver) newTxtRecord(zoneId int64, zone, fqdn, value string, ttl int32) dns.CreateRecordInput {
+	request := dns.CreateRecordInput{}
 	request.SetType("TXT")
 	request.SetZID(zoneId)
+	request.SetTTL(ttl)
 	request.SetHost(c.extractRecordName(fqdn, zone))
 	request.SetValue(value)
 
 	return request
 }
 
-func (c *volcengineDNSProviderSolver) findTxtRecord(zoneId int64, domain, fqdn string) ([]privatezone.RecordForListRecordsOutput, error) {
+func (c *volcengineDNSProviderSolver) findTxtRecord(zoneId int64, domain, fqdn string) ([]dns.RecordForListRecordsOutput, error) {
 	zoneName := util.UnFqdn(domain)
-	request := privatezone.ListRecordsInput{}
+	request := dns.ListRecordsInput{}
 	request.SetZID(zoneId)
-	request.SetPageSize(strconv.Itoa(500))
+	request.SetPageSize(500)
 
-	var records []privatezone.RecordForListRecordsOutput
+	var records []dns.RecordForListRecordsOutput
 
 	result, err := c.volcengineClient.ListRecords(&request)
 	if err != nil {
