@@ -3,3 +3,4 @@ appVersion: "0.1.0"
 description: A Cert Manager Webhook for Volcengine
 name: cert-manager-webhook-volcengine
 version: 0.1.0
+icon: https://portal.volccdn.com/obj/volcfe/misc/favicon.png
