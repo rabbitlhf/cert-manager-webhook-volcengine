@@ -103,7 +103,7 @@ spec:
             groupName: {{ .Values.groupName }}
             solverName: volcengine
             config:
-              regionId: {{ .Values.regionId | "cn-beijing" }}
+              regionId: {{ .Values.regionId | default "cn-beijing" }}
               ttl: {{ .Values.clusterIssuer.ttl }}
               accessKeySecretRef:
                 key: accessKey
