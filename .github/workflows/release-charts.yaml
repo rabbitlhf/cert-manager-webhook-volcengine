@@ -43,7 +43,7 @@ jobs:
 
     - name: Download charts
       run: |
-        helm repo add self ${{ env.HELM_REPO }}${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }}
+        helm repo add self ${{ env.HELM_REPO }}
         CHART_VERSIONS=$(helm search repo -l ${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }} | awk '(NR>1) { print $2 }')
         mkdir -p _build && cd _build
         for CHART_VERSION in $CHART_VERSIONS; do helm pull self/${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }} --version $CHART_VERSION; done
