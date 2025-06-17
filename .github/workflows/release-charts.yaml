@@ -43,7 +43,7 @@ jobs:
 
     - name: Download charts
       run: |
-        helm repo add self $HELM_REPO${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }}
+        helm repo add self ${{ env.HELM_REPO }}${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }}
         CHART_VERSIONS=$(helm search repo -l ${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }} | awk '(NR>1) { print $2 }')
         mkdir -p _build && cd _build
         for CHART_VERSION in $CHART_VERSIONS; do helm pull self/${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }} --version $CHART_VERSION; done
@@ -52,7 +52,7 @@ jobs:
       run: |
         mkdir -p _build && cd _build
         helm package ../charts/*
-        helm repo index --url $HELM_REPO --merge index.yaml .
+        helm repo index --url ${{ env.HELM_REPO }} --merge index.yaml .
 
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
