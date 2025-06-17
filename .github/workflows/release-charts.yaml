@@ -1,0 +1,72 @@
+name: Release Charts
+
+on:
+  push:
+    tags:
+    - v*
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+env:
+  HELM_REPO: https://rabbitlhf.github.io/helm-charts/
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # Build job
+  build_charts:
+    name: Build Charts
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Inject slug/short variables
+      uses: rlespinasse/github-slug-action@v5
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v5
+
+    - name: Install helm
+      run: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+    - name: Download charts
+      run: |
+        helm repo add self $HELM_REPO${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }}
+        CHART_VERSIONS=$(helm search repo -l ${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }} | awk '(NR>1) { print $2 }')
+        mkdir -p _build && cd _build
+        for CHART_VERSION in $CHART_VERSIONS; do helm pull self/${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }} --version $CHART_VERSION; done
+
+    - name: Package
+      run: |
+        mkdir -p _build && cd _build
+        helm package ../charts/*
+        helm repo index --url $HELM_REPO --merge index.yaml .
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./_build
+
+  # Deployment job
+  deploy_gh_pages:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
