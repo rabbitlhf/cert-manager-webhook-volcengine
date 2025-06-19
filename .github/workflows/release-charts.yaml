@@ -47,6 +47,8 @@ jobs:
         mkdir -p _build && cd _build
         helm package ../charts/*
         helm repo index --url ${{ env.HELM_REPO }} --merge index.yaml .
+        ls -ltr .
+        cat index.yaml
 
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
@@ -79,12 +81,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push charts to GHCR
-        run: |
-          shopt -s nullglob
-          for pkg in .cr-release-packages/*; do
-            if [ -z "${pkg:-}" ]; then
-              break
-            fi
-            helm push "${pkg}" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts"
-          done
+#      - name: Push charts to GHCR
+#        run: |
+#          shopt -s nullglob
+#          for pkg in .cr-release-packages/*; do
+#            if [ -z "${pkg:-}" ]; then
+#              break
+#            fi
+#            helm push "${pkg}" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts"
+#          done
