@@ -17,7 +17,7 @@ certManager:
   serviceAccountName: cert-manager
 
 image:
-  repository: rabbitlhf/cert-manager-webhook-volcengine
+  repository: ghcr.io/rabbitlhf/cert-manager-webhook-volcengine
   #  tag: latest
   pullPolicy: IfNotPresent
 
