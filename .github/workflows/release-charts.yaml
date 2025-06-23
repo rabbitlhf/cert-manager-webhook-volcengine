@@ -35,7 +35,6 @@ jobs:
     - name: Install helm
       run: |
         curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-        helm version
 
     - name: Download Existing Charts (for index merging)
       run: |
@@ -45,9 +44,6 @@ jobs:
         if [ -f "index.yaml.old" ]; then
           # 下载现有Chart包
           helm repo add tmp_repo ${{ env.HELM_REPO }}
-#          for chart_name in $(yq eval '.entries.[].name' index.yaml.old); do
-#             helm pull tmp_repo/$chart_name
-#          done
         fi
 #        helm repo add self ${{ env.HELM_REPO }}
 #        CHART_VERSIONS=$(helm search repo -l ${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }} | awk '(NR>1) { print $2 }')
@@ -72,11 +68,6 @@ jobs:
             helm package "$chart_dir" -d _build
           fi
         done
-
-#        helm package ../charts/*
-#        helm repo index --url ${{ env.HELM_REPO }} --merge index.yaml .
-#        ls -ltr .
-#        cat index.yaml
 
     - name: Generate or Update Index
       run: |
