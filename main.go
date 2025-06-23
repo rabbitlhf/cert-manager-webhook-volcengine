@@ -97,7 +97,7 @@ type volcengineDNSProviderConfig struct {
 // within a single webhook deployment**.
 // For example, `cloudflare` may be used as the name of a solver.
 func (c *volcengineDNSProviderSolver) Name() string {
-	return "volcengine-solver"
+	return "volcengine"
 }
 
 // Present is responsible for actually presenting the DNS record with the
