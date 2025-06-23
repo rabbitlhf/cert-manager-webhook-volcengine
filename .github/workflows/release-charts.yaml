@@ -18,36 +18,79 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Build job
-  build_charts:
-    name: Build Charts
+  build_and_release:
+    name: Build and Release Charts
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
     - name: Checkout Code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 获取完整历史记录，用于自动版本
 
-    - name: Inject slug/short variables
-      uses: rlespinasse/github-slug-action@v5
-
-    - name: Setup Pages
-      uses: actions/configure-pages@v5
+#    - name: Inject slug/short variables
+#      uses: rlespinasse/github-slug-action@v5
 
     - name: Install helm
-      run: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-    - name: Download charts
       run: |
-        helm repo add self ${{ env.HELM_REPO }}
-        CHART_VERSIONS=$(helm search repo -l ${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }} | awk '(NR>1) { print $2 }')
-        mkdir -p _build && cd _build
-        for CHART_VERSION in $CHART_VERSIONS; do helm pull self/${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }} --version $CHART_VERSION; done
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+        helm version
 
-    - name: Package
+    - name: Download Existing Charts (for index merging)
       run: |
         mkdir -p _build && cd _build
-        helm package ../charts/*
-        helm repo index --url ${{ env.HELM_REPO }} --merge index.yaml .
-        ls -ltr .
+        # 尝试下载现有索引，如果存在则用于合并
+        curl -fL -o index.yaml.old "${{ env.HELM_REPO }}/index.yaml" || echo "No existing index found"
+        if [ -f "index.yaml.old" ]; then
+          # 下载现有Chart包
+          helm repo add tmp_repo ${{ env.HELM_REPO }}
+#          for chart_name in $(yq eval '.entries.[].name' index.yaml.old); do
+#             helm pull tmp_repo/$chart_name
+#          done
+        fi
+#        helm repo add self ${{ env.HELM_REPO }}
+#        CHART_VERSIONS=$(helm search repo -l ${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }} | awk '(NR>1) { print $2 }')
+#        for CHART_VERSION in $CHART_VERSIONS; do helm pull self/${{ env.GITHUB_REPOSITORY_NAME_PART_SLUG }} --version $CHART_VERSION; done
+
+    - name: Package Charts
+      run: |
+        # 获取Chart版本（如果标签是chart版本格式）
+        CHART_VERSION=""
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          CHART_VERSION="${GITHUB_REF#refs/tags/}"
+          CHART_VERSION="${CHART_VERSION#v}"  # 移除'v'前缀
+        fi
+
+        # 打包所有Charts
+        for chart_dir in charts/*/; do
+          if [ -f "$chart_dir/Chart.yaml" ]; then
+            # 如果启用了自动版本，动态设置版本
+            if [ -n "$CHART_VERSION" ]; then
+              yq eval ".version = \"$CHART_VERSION\"" -i "$chart_dir/Chart.yaml"
+            fi
+            helm package "$chart_dir" -d _build
+          fi
+        done
+
+#        helm package ../charts/*
+#        helm repo index --url ${{ env.HELM_REPO }} --merge index.yaml .
+#        ls -ltr .
+#        cat index.yaml
+
+    - name: Generate or Update Index
+      run: |
+        cd _build
+        # 如果有旧索引就合并，否则创建新索引
+        if [ -f "index.yaml.old" ]; then
+          helm repo index . --url "${{ env.HELM_REPO }}" --merge index.yaml.old
+          rm index.yaml.old
+        else
+          helm repo index . --url "${{ env.HELM_REPO }}"
+        fi
+        
+        # 验证索引
+        echo "Generated index contents:"
         cat index.yaml
 
     - name: Upload artifact
@@ -57,7 +100,7 @@ jobs:
 
   # Deployment job
   deploy:
-    name: Deploy Helm to GitHub Pages And GHCR
+    name: Deploy Helm to GitHub Pages
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -69,14 +112,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: build_charts
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+#      - name: Deploy to GitHub Pages
+#        id: deployment
+#        uses: actions/deploy-pages@v4
 
-      # see https://github.com/helm/chart-releaser/issues/183
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_build
+          destination_dir: helm-charts
