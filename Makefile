@@ -15,7 +15,7 @@ export TEST_ASSET_KUBE_APISERVER=_test/kubebuilder/bin/kube-apiserver
 export TEST_ASSET_KUBECTL=_test/kubebuilder/bin/kubectl
 
 test: _test/kubebuilder
-	TEST_ZONE_NAME=example.com go test -v .
+	TEST_ZONE_NAME=shunlu.cc. go test -v .
 
 _test/kubebuilder:
 	curl -fsSL https://go.kubebuilder.io/test-tools/$(KUBE_VERSION)/$(OS)/$(ARCH) -o kubebuilder-tools.tar.gz
