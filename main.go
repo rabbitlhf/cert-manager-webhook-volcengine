@@ -106,7 +106,7 @@ func (c *volcengineDNSProviderSolver) Name() string {
 // cert-manager itself will later perform a self check to ensure that the
 // solver has correctly configured the DNS provider.
 func (c *volcengineDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
-	klog.V(6).Infof("call function Present: namespace=%s, zone=%s, fqdn=%s",
+	klog.Infof("call function Present: namespace=%s, zone=%s, fqdn=%s",
 		ch.ResourceNamespace, ch.ResolvedZone, ch.ResolvedFQDN)
 
 	cfg, err := loadConfig(ch.Config)
@@ -180,6 +180,7 @@ func (c *volcengineDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) err
 			if err != nil {
 				return fmt.Errorf("volcengine: error deleting TXT record: %v", err)
 			}
+			klog.Infof("deleted TXT record %v", ch.ResolvedFQDN)
 		}
 	}
 	return nil
@@ -266,11 +267,14 @@ func (c *volcengineDNSProviderSolver) getHostedZone(resolvedZone string) (int32,
 // newTxtRecord is a helper function that creates a new TXT record input for
 // the given zone, fqdn, and value.
 func (c *volcengineDNSProviderSolver) newTxtRecord(zoneId int64, zone, fqdn, value string, ttl int32) dns.CreateRecordInput {
+	klog.Infof("Creating TXT record for fqdn: %s , zone: %v", fqdn, zone)
 	request := dns.CreateRecordInput{}
 	request.SetType("TXT")
 	request.SetZID(zoneId)
 	request.SetTTL(ttl)
-	request.SetHost(c.extractRecordName(fqdn, zone))
+	name := c.extractRecordName(fqdn, zone)
+	klog.Infof("Record name: %v", name)
+	request.SetHost(name)
 	request.SetValue(value)
 
 	return request
