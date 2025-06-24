@@ -10,12 +10,12 @@ This is a cert-manager webhook solver for [Volcengine-trafficroute](https://www.
 
 ### Use Helm
 
-First, generate `AccessKey` and `SecretKey` in [Cloud API](https://console.volcengine.com/iam/keymanage/)
+First, generate `Access Key ID` and `Secret Access Key` in [Cloud API](https://console.volcengine.com/iam/keymanage/)
 
 You can install chart from git repo:
 
 ```bash
-$ helm install --name cert-manager-webhook-volcengine ./deploy/cert-manager-webhook-volcengine \
+$ helm install --name cert-manager-webhook-volcengine ./charts/cert-manager-webhook-volcengine \
     --namespace <NAMESPACE-WHICH-CERT-MANAGER-INSTALLED> \
     --set groupName=<GROUP_NAME> \
     --set clusterIssuer.enabled=true,clusterIssuer.email=<EMAIL_ADDRESS>
@@ -24,14 +24,6 @@ $ helm install --name cert-manager-webhook-volcengine ./deploy/cert-manager-webh
 Create the secret holding volcegine credential, accessKey need input AccessKeyId, secretKey need input SecretAccessKey:
 ```
 kubectl create secret generic volcengine-secrets --from-literal="accessKey=youraccesskey" --from-literal="secretKey=yoursecretkey"
-```
-
-### Use Kubectl
-
-Use `kubectl apply` to install:
-
-```bash
-kubectl apply -f https://raw.githubusercontent.com/imroc/cert-manager-webhook-volcengine/master/bundle.yaml
 ```
 
 ## Usage
@@ -48,8 +40,8 @@ metadata:
   namespace: cert-manager
 type: Opaque
 stringData:
-  accessKey: xxx
-  secretKey: xxx
+  accessKey: "xxx"
+  secretKey: "xxx"
 ```
 
 > Base64 is not needed in `stringData`.
@@ -69,7 +61,7 @@ metadata:
   name: volcengine
 spec:
   acme:
-    email: roc@imroc.cc
+    email: example@example.com
     privateKeySecretRef:
       name: volcengine-letsencrypt
     server: https://acme-v02.api.letsencrypt.org/directory
