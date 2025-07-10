@@ -114,9 +114,6 @@ func (c *volcengineDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) err
 		return err
 	}
 
-	// do something more useful with the decoded configuration
-	fmt.Printf("Decoded configuration %v", cfg)
-
 	accessKey, err := c.loadSecretData(cfg.AccessKey, ch.ResourceNamespace)
 	if err != nil {
 		return err
@@ -162,6 +159,31 @@ func (c *volcengineDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) err
 // This is in order to facilitate multiple DNS validations for the same domain
 // concurrently.
 func (c *volcengineDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
+	cfg, err := loadConfig(ch.Config)
+	if err != nil {
+		return err
+	}
+
+	accessKey, err := c.loadSecretData(cfg.AccessKey, ch.ResourceNamespace)
+	if err != nil {
+		return err
+	}
+
+	secretKey, err := c.loadSecretData(cfg.SecretKey, ch.ResourceNamespace)
+	if err != nil {
+		return err
+	}
+
+	conf := volcengine.NewConfig().
+		WithCredentials(credentials.NewStaticCredentials(string(accessKey), string(secretKey), "")).
+		WithRegion(cfg.RegionId)
+
+	sess, err := session.NewSession(conf)
+	if err != nil {
+		return err
+	}
+	c.volcengineClient = dns.New(sess)
+
 	// add code that deletes a record from the DNS provider's console
 	zoneId, err := c.getHostedZone(ch.ResolvedZone)
 	if err != nil {
@@ -171,6 +193,8 @@ func (c *volcengineDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) err
 	if err != nil {
 		return fmt.Errorf("volcengine: error finding TXT record: %v", err)
 	}
+
+	klog.Infof("CleanUp record for fqdn: %s , zone: %v", ch.ResolvedFQDN, ch.ResolvedZone)
 
 	for _, record := range records {
 		if ch.Key == *record.Value {
@@ -272,7 +296,8 @@ func (c *volcengineDNSProviderSolver) newTxtRecord(zoneId int64, zone, fqdn, val
 	request.SetType("TXT")
 	request.SetZID(zoneId)
 	request.SetTTL(ttl)
-	name := c.extractRecordName(fqdn, zone)
+	zoneName := util.UnFqdn(zone)
+	name := c.extractRecordName(fqdn, zoneName)
 	klog.Infof("Record name: %v", name)
 	request.SetHost(name)
 	request.SetValue(value)

@@ -19,7 +19,8 @@ func TestRunsSuite(t *testing.T) {
 	// snippet of valid configuration that should be included on the
 	// ChallengeRequest passed as part of the test cases.
 
-	fqdn = GetRandomString(20) + "." + zone
+	fqdn = "_acme-challenge." + zone
+	//fqdn = GetRandomString(20) + "." + zone
 	fmt.Printf("fqdn: %s\n", fqdn)
 
 	fixture := acmetest.NewFixture(&volcengineDNSProviderSolver{},
